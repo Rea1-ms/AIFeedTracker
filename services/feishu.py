@@ -73,7 +73,7 @@ class FeishuBot:
         self.template_version_name = FEISHU_CONFIG["template_version_name"]
         self.user_open_id = FEISHU_CONFIG["user_open_id"]
 
-        # 检查配置状态
+    # 检查配置状态
         self.has_app_config = bool(
             self.app_id and self.app_secret and LARK_SDK_AVAILABLE
         )

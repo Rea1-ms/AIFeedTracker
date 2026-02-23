@@ -3,7 +3,7 @@
 服务模块
 """
 
-from .feishu import FeishuBot
+from .notifier import Notifier
 from .monitor import MonitorService
 
-__all__ = ["FeishuBot", "MonitorService"]
+__all__ = ["Notifier", "MonitorService"]

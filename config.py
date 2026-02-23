@@ -30,9 +30,9 @@ if env_file.exists():
 FEISHU_CONFIG = {
     "app_id": os.getenv("app_id"),
     "app_secret": os.getenv("app_secret"),
-    "template_id": os.getenv("FEISHU_TEMPLATE_ID", "YOUR_TEMPLATE_ID"),  # 替换为您的卡片模板ID
-    "template_version_name": os.getenv("FEISHU_TEMPLATE_VERSION", "1.0.0"),  # 替换为您的卡片版本号
-    "user_open_id": os.getenv("FEISHU_USER_OPEN_ID", "YOUR_USER_OPEN_ID"),  # 替换为接收消息的用户open_id
+    "template_id": os.getenv("FEISHU_TEMPLATE_ID"),
+    "template_version_name": os.getenv("FEISHU_TEMPLATE_VERSION", "1.0.0"),
+    "user_open_id": os.getenv("FEISHU_USER_OPEN_ID"),
 }
 
 # B站配置
@@ -84,8 +84,12 @@ def get_config_status() -> dict:
     """获取配置状态，用于诊断"""
     return {
         "env_file_exists": env_file.exists(),
-        "feishu_configured": bool(
-            FEISHU_CONFIG["app_id"] and FEISHU_CONFIG["app_secret"]
+        "notify_configured": bool(
+            any(v for k, v in os.environ.items() if k in (
+                "DD_BOT_TOKEN", "FSKEY", "BARK_PUSH", "TG_BOT_TOKEN",
+                "PUSH_KEY", "PUSH_PLUS_TOKEN", "QYWX_KEY", "QYWX_AM",
+                "SMTP_SERVER",
+            ))
         ),
         "bilibili_configured": bool(BILIBILI_CONFIG["SESSDATA"]),
         "cookie_available": bool(build_bilibili_cookie()),

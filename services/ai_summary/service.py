@@ -24,6 +24,7 @@ class AISummaryService:
         timeout: int = 30000,
         user_data_dir: str = "./browser_data",
         chrome_path: str = None,
+        notifier=None,
         feishu_bot=None,
     ):
         """
@@ -34,9 +35,10 @@ class AISummaryService:
             timeout: 兼容参数，实际不使用
             user_data_dir: 兼容参数，实际不使用
             chrome_path: 兼容参数，实际不使用
-            feishu_bot: 飞书机器人实例（用于发送通知）
+            notifier: 通知服务实例（用于发送通知）
+            feishu_bot: 已废弃，保留兼容性，优先使用 notifier
         """
-        self.feishu_bot = feishu_bot
+        self.notifier = notifier or feishu_bot
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
         # 初始化子服务
@@ -139,10 +141,10 @@ class AISummaryService:
                     )
                     self.logger.warning(result_message)
                     # 发送部分失败通知
-                    if self.feishu_bot and failed_videos:
+                    if self.notifier and failed_videos:
                         try:
-                            await self.feishu_bot.send_system_notification(
-                                self.feishu_bot.LEVEL_WARNING,
+                            await self.notifier.send_system_notification(
+                                self.notifier.LEVEL_WARNING,
                                 "AI总结部分失败",
                                 f"成功: {success_count}个\n失败: {len(failed_videos)}个\n\n失败的视频:\n"
                                 + "\n".join(failed_videos),
@@ -154,10 +156,10 @@ class AISummaryService:
                 error_msg = "所有视频总结都失败"
                 self.logger.error(error_msg)
                 # 发送全部失败通知
-                if self.feishu_bot:
+                if self.notifier:
                     try:
-                        await self.feishu_bot.send_system_notification(
-                            self.feishu_bot.LEVEL_ERROR,
+                        await self.notifier.send_system_notification(
+                            self.notifier.LEVEL_ERROR,
                             "AI总结服务失败",
                             f"{error_msg}\n\n失败的视频:\n" + "\n".join(failed_videos),
                         )
@@ -169,10 +171,10 @@ class AISummaryService:
             error_msg = f"视频总结过程异常: {str(e)}"
             self.logger.error(error_msg, exc_info=True)
             # 发送异常通知
-            if self.feishu_bot:
+            if self.notifier:
                 try:
-                    await self.feishu_bot.send_system_notification(
-                        self.feishu_bot.LEVEL_ERROR,
+                    await self.notifier.send_system_notification(
+                        self.notifier.LEVEL_ERROR,
                         "AI总结服务异常",
                         f"{error_msg}\n\n视频数量: {len(video_urls)}",
                     )

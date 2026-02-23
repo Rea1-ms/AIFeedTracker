@@ -13,11 +13,11 @@ from pathlib import Path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-from config import get_config_status
+from config import build_bilibili_cookie, get_config_status
 
 # 导入核心模块
 from core import configure_logging
-from services import FeishuBot, MonitorService
+from services import Notifier, MonitorService
 
 # 导入服务模块
 from services.ai_summary import AISummaryService
@@ -26,7 +26,7 @@ from services.ai_summary import AISummaryService
 class AIVideoBot:
     """AI视频机器人主类
 
-    整合飞书机器人、AI视频总结服务和B站动态监控功能
+    整合通知服务、AI视频总结服务和B站动态监控功能
     """
 
     def __init__(self):
@@ -39,8 +39,15 @@ class AIVideoBot:
         self._log_config_status(config_status)
 
         # 初始化服务
-        self.feishu_bot = FeishuBot()
-        self.ai_service = AISummaryService(feishu_bot=self.feishu_bot)  # 使用AI总结服务
+        self.notifier = Notifier()
+
+        # AI总结服务为可选功能，未配置时不影响监控
+        self.ai_service = None
+        try:
+            self.ai_service = AISummaryService(notifier=self.notifier)
+            self.logger.info("AI总结服务初始化成功")
+        except Exception as e:
+            self.logger.info(f"AI总结服务未启用: {e}")
 
         self.logger.info("AI视频机器人初始化完成")
 
@@ -49,12 +56,12 @@ class AIVideoBot:
         try:
             content = "机器人已成功启动\n\n"
             content += "**初始化状态:**\n"
-            content += "- 飞书机器人: ✅\n"
+            content += "- 通知服务: ✅\n"
             content += "- AI总结服务: ✅\n"
             content += "- 监控服务: 待启动"
 
-            await self.feishu_bot.send_system_notification(
-                self.feishu_bot.LEVEL_INFO, "机器人启动成功", content
+            await self.notifier.send_system_notification(
+                self.notifier.LEVEL_INFO, "机器人启动成功", content
             )
         except Exception as e:
             self.logger.warning(f"发送启动通知失败: {e}")
@@ -66,8 +73,8 @@ class AIVideoBot:
             emoji = "✅" if value else "❌"
             self.logger.info(f"  {emoji} {key}: {value}")
 
-        if not status["feishu_configured"]:
-            self.logger.warning("飞书应用未配置，将使用Mock模式")
+        if not status.get("notify_configured", True):
+            self.logger.warning("通知服务未配置，将仅在控制台输出")
         if not status["bilibili_configured"]:
             self.logger.warning("B站认证未配置，部分功能可能受限")
 
@@ -100,7 +107,7 @@ class AIVideoBot:
             return ""
 
     async def send_notification(self, influencer: str, platform: str, content: str):
-        """发送通知消息到飞书
+        """发送通知消息
 
         Args:
             influencer: 博主名称
@@ -108,14 +115,9 @@ class AIVideoBot:
             content: 消息内容
         """
         try:
-            if hasattr(self.feishu_bot, "send_card_message"):
-                success = await self.feishu_bot.send_card_message(
-                    influencer, platform, content
-                )
-            else:
-                success = await self.feishu_bot.send_text(
-                    f"[{platform}] {influencer}\n\n{content}"
-                )
+            success = await self.notifier.send_card_message(
+                influencer, platform, content
+            )
 
             if success:
                 self.logger.info(f"通知发送成功: {influencer} - {platform}")
@@ -136,7 +138,9 @@ class AIVideoBot:
 
             # 创建监控服务
             monitor_service = MonitorService(
-                feishu_bot=self.feishu_bot, summarizer=self.ai_service
+                notifier=self.notifier,
+                summarizer=self.ai_service,
+                cookie=build_bilibili_cookie(),
             )
 
             # 加载创作者列表
@@ -153,8 +157,8 @@ class AIVideoBot:
                 content += f"**监控对象:** {creator_names}\n"
                 content += f"**模式:** {'单次检查' if once else '持续监控'}"
 
-                await self.feishu_bot.send_system_notification(
-                    self.feishu_bot.LEVEL_INFO, "监控服务启动", content
+                await self.notifier.send_system_notification(
+                    self.notifier.LEVEL_INFO, "监控服务启动", content
                 )
             except Exception as e:
                 self.logger.warning(f"发送监控启动通知失败: {e}")
@@ -166,8 +170,8 @@ class AIVideoBot:
             self.logger.error(f"动态监控异常: {e}")
             # 发送监控异常通知
             try:
-                await self.feishu_bot.send_system_notification(
-                    self.feishu_bot.LEVEL_ERROR,
+                await self.notifier.send_system_notification(
+                    self.notifier.LEVEL_ERROR,
                     "监控服务异常停止",
                     f"监控服务遇到异常并停止\n\n**错误信息:**\n```\n{str(e)}\n```",
                 )
@@ -249,8 +253,8 @@ async def main():
                     print("\n收到停止信号，退出服务")
                     # 发送正常停止通知
                     try:
-                        await bot.feishu_bot.send_system_notification(
-                            bot.feishu_bot.LEVEL_INFO,
+                        await bot.notifier.send_system_notification(
+                            bot.notifier.LEVEL_INFO,
                             "机器人正常停止",
                             "收到停止信号，机器人正在安全关闭",
                         )
@@ -261,8 +265,8 @@ async def main():
                     print(f"监控循环异常: {e}")
                     # 发送异常通知
                     try:
-                        await bot.feishu_bot.send_system_notification(
-                            bot.feishu_bot.LEVEL_ERROR,
+                        await bot.notifier.send_system_notification(
+                            bot.notifier.LEVEL_ERROR,
                             "服务循环异常",
                             f"服务模式遇到异常，将在30秒后重试\n\n**错误信息:**\n```\n{str(e)}\n```",
                         )
@@ -279,8 +283,8 @@ async def main():
         print("\n收到中断信号，正在停止...")
         # 发送正常停止通知
         try:
-            await bot.feishu_bot.send_system_notification(
-                bot.feishu_bot.LEVEL_INFO,
+            await bot.notifier.send_system_notification(
+                bot.notifier.LEVEL_INFO,
                 "机器人正常停止",
                 "收到中断信号，机器人正在安全关闭",
             )
@@ -290,8 +294,8 @@ async def main():
         print(f"\n机器人运行异常: {e}")
         # 发送异常停止通知
         try:
-            await bot.feishu_bot.send_system_notification(
-                bot.feishu_bot.LEVEL_ERROR,
+            await bot.notifier.send_system_notification(
+                bot.notifier.LEVEL_ERROR,
                 "机器人意外停止",
                 f"机器人遇到未捕获的异常并停止\n\n**错误信息:**\n```\n{str(e)}\n```",
             )

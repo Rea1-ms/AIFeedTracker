@@ -82,16 +82,16 @@ class MonitorService:
     STATE_PATH = os.path.join("data", "bilibili_state.json")
     CREATORS_PATH = os.path.join("data", "bilibili_creators.json")
 
-    def __init__(self, feishu_bot=None, summarizer=None, cookie: Optional[str] = None):
+    def __init__(self, notifier=None, summarizer=None, cookie: Optional[str] = None):
         """
         初始化监控服务
 
         Args:
-            feishu_bot: 飞书机器人实例
+            notifier: 通知服务实例
             summarizer: AI总结服务实例
             cookie: B站Cookie
         """
-        self.feishu_bot = feishu_bot
+        self.notifier = notifier
         self.summarizer = summarizer
         self.cookie = cookie
         self.state = JsonState(self.STATE_PATH)
@@ -382,10 +382,10 @@ class MonitorService:
                 error_msg = f"API返回错误: code={data.get('code')}, message={data.get('message')}"
                 self.logger.warning(f"{creator.name} ({creator.uid}) - {error_msg}")
                 # 发送API错误通知
-                if self.feishu_bot:
+                if self.notifier:
                     try:
-                        await self.feishu_bot.send_system_notification(
-                            self.feishu_bot.LEVEL_WARNING,
+                        await self.notifier.send_system_notification(
+                            self.notifier.LEVEL_WARNING,
                             "B站API请求失败",
                             f"获取创作者动态失败\n\n**创作者:** {creator.name}\n**UID:** {creator.uid}\n**错误代码:** {data.get('code')}\n**错误信息:** {data.get('message')}",
                         )
@@ -572,9 +572,9 @@ class MonitorService:
         if pub_time:
             markdown_content += f"\n\n{pub_time}"
 
-        # 发送到飞书
-        if self.feishu_bot:
-            await self.feishu_bot.send_card_message(
+        # 发送通知
+        if self.notifier:
+            await self.notifier.send_card_message(
                 creator.name, "哔哩哔哩", markdown_content
             )
 
@@ -657,9 +657,9 @@ class MonitorService:
 
         markdown_content += f"\n\n[查看原动态]({url})"
 
-        # 发送到飞书
-        if self.feishu_bot:
-            await self.feishu_bot.send_card_message(
+        # 发送通知
+        if self.notifier:
+            await self.notifier.send_card_message(
                 creator.name, "哔哩哔哩", markdown_content
             )
 
@@ -688,10 +688,10 @@ class MonitorService:
             except Exception as e:
                 self.logger.error(f"监控创作者 {creator.name} 时出错: {e}")
                 # 发送监控异常通知
-                if self.feishu_bot:
+                if self.notifier:
                     try:
-                        await self.feishu_bot.send_system_notification(
-                            self.feishu_bot.LEVEL_ERROR,
+                        await self.notifier.send_system_notification(
+                            self.notifier.LEVEL_ERROR,
                             "创作者监控异常",
                             f"监控创作者时遇到异常\n\n**创作者:** {creator.name}\n**UID:** {creator.uid}\n**错误信息:**\n```\n{str(e)}\n```\n\n将在60秒后重试",
                         )
